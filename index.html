@@ -1,0 +1,1539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Chess with AI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            overflow: hidden;
+            touch-action: none;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+        }
+
+        #gameContainer {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        #canvas {
+            flex: 1;
+            display: block;
+            touch-action: none;
+        }
+
+        #ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            color: white;
+            z-index: 10;
+        }
+
+        .ui-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .ui-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .ui-left {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        #turnIndicator {
+            font-size: 16px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        #statusText {
+            font-size: 12px;
+            color: #ffd700;
+            margin-top: 4px;
+        }
+
+        .btn {
+            background: #e74c3c;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.3s;
+            margin-left: 6px;
+        }
+
+        .btn:active {
+            background: #c0392b;
+        }
+
+        .btn.secondary {
+            background: #3498db;
+        }
+
+        .btn.secondary:active {
+            background: #2980b9;
+        }
+
+        #difficultySelect {
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: none;
+            background: #34495e;
+            color: white;
+            font-weight: bold;
+            font-size: 13px;
+        }
+
+        #capturedPieces {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            color: white;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 10;
+            min-height: 55px;
+        }
+
+        .captured-section {
+            flex: 1;
+            text-align: center;
+        }
+
+        .captured-label {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-bottom: 4px;
+        }
+
+        .captured-list {
+            font-size: 18px;
+            letter-spacing: 2px;
+        }
+
+        #message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            color: white;
+            padding: 25px 35px;
+            border-radius: 15px;
+            font-size: 20px;
+            font-weight: bold;
+            text-align: center;
+            z-index: 100;
+            display: none;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            max-width: 80%;
+        }
+
+        #message.show {
+            display: block;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -60%);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%);
+            }
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 18px;
+            z-index: 5;
+            text-align: center;
+        }
+
+        .thinking {
+            font-size: 14px;
+            color: #ffd700;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        #promotionDialog {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            z-index: 101;
+            display: none;
+        }
+
+        #promotionDialog.show {
+            display: block;
+        }
+
+        .promotion-title {
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .promotion-options {
+            display: flex;
+            gap: 10px;
+        }
+
+        .promotion-btn {
+            background: #3498db;
+            border: none;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            font-size: 24px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .promotion-btn:active {
+            background: #2980b9;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="ui">
+            <div class="ui-row">
+                <div>
+                    <div id="turnIndicator">White's Turn</div>
+                    <div id="statusText"></div>
+                </div>
+                <div>
+                    <select id="difficultySelect">
+                        <option value="1">Easy</option>
+                        <option value="2" selected>Medium</option>
+                        <option value="3">Hard</option>
+                    </select>
+                </div>
+            </div>
+            <div class="ui-row">
+                <button class="btn secondary" id="undoBtn">Undo</button>
+                <button class="btn" id="resetBtn">New Game</button>
+            </div>
+        </div>
+        <canvas id="canvas"></canvas>
+        <div id="capturedPieces">
+            <div class="captured-section">
+                <div class="captured-label">White Captured:</div>
+                <div id="whiteCaptured" class="captured-list">-</div>
+            </div>
+            <div class="captured-section">
+                <div class="captured-label">Black Captured:</div>
+                <div id="blackCaptured" class="captured-list">-</div>
+            </div>
+        </div>
+        <div id="message"></div>
+        <div id="promotionDialog">
+            <div class="promotion-title">Choose Promotion</div>
+            <div class="promotion-options">
+                <button class="promotion-btn" data-piece="queen">♛</button>
+                <button class="promotion-btn" data-piece="rook">♜</button>
+                <button class="promotion-btn" data-piece="bishop">♝</button>
+                <button class="promotion-btn" data-piece="knight">♞</button>
+            </div>
+        </div>
+        <div class="loading">Loading Chess Engine...</div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // ==================== CHESS ENGINE ====================
+        
+        class ChessEngine {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.board = this.initBoard();
+                this.currentTurn = 'white';
+                this.capturedWhite = [];
+                this.capturedBlack = [];
+                this.kingPositions = { white: { x: 4, y: 0 }, black: { x: 4, y: 7 } };
+                this.moveHistory = [];
+                this.enPassantTarget = null;
+                this.castlingRights = {
+                    white: { kingSide: true, queenSide: true },
+                    black: { kingSide: true, queenSide: true }
+                };
+                this.halfMoveClock = 0;
+                this.fullMoveNumber = 1;
+            }
+
+            initBoard() {
+                const board = Array(8).fill(null).map(() => Array(8).fill(null));
+                
+                // Pawns
+                for (let i = 0; i < 8; i++) {
+                    board[i][1] = { type: 'pawn', color: 'white', moved: false };
+                    board[i][6] = { type: 'pawn', color: 'black', moved: false };
+                }
+                
+                // Rooks
+                board[0][0] = { type: 'rook', color: 'white', moved: false };
+                board[7][0] = { type: 'rook', color: 'white', moved: false };
+                board[0][7] = { type: 'rook', color: 'black', moved: false };
+                board[7][7] = { type: 'rook', color: 'black', moved: false };
+                
+                // Knights
+                board[1][0] = { type: 'knight', color: 'white' };
+                board[6][0] = { type: 'knight', color: 'white' };
+                board[1][7] = { type: 'knight', color: 'black' };
+                board[6][7] = { type: 'knight', color: 'black' };
+                
+                // Bishops
+                board[2][0] = { type: 'bishop', color: 'white' };
+                board[5][0] = { type: 'bishop', color: 'white' };
+                board[2][7] = { type: 'bishop', color: 'black' };
+                board[5][7] = { type: 'bishop', color: 'black' };
+                
+                // Queens
+                board[3][0] = { type: 'queen', color: 'white' };
+                board[3][7] = { type: 'queen', color: 'black' };
+                
+                // Kings
+                board[4][0] = { type: 'king', color: 'white', moved: false };
+                board[4][7] = { type: 'king', color: 'black', moved: false };
+                
+                return board;
+            }
+
+            getPiece(x, y) {
+                if (x < 0 || x > 7 || y < 0 || y > 7) return null;
+                return this.board[x][y];
+            }
+
+            getAllValidMoves(color) {
+                const moves = [];
+                for (let x = 0; x < 8; x++) {
+                    for (let y = 0; y < 8; y++) {
+                        const piece = this.getPiece(x, y);
+                        if (piece && piece.color === color) {
+                            const pieceMoves = this.getValidMovesForPiece(x, y);
+                            moves.push(...pieceMoves.map(m => ({ from: { x, y }, to: m })));
+                        }
+                    }
+                }
+                return moves;
+            }
+
+            getValidMovesForPiece(x, y) {
+                const moves = [];
+                for (let toX = 0; toX < 8; toX++) {
+                    for (let toY = 0; toY < 8; toY++) {
+                        if (this.isValidMove(x, y, toX, toY, true)) {
+                            moves.push({ x: toX, y: toY });
+                        }
+                    }
+                }
+                return moves;
+            }
+
+            isValidMove(fromX, fromY, toX, toY, checkKingSafety = true) {
+                const piece = this.getPiece(fromX, fromY);
+                if (!piece || piece.color !== this.currentTurn) return false;
+                if (fromX === toX && fromY === toY) return false;
+                
+                const targetPiece = this.getPiece(toX, toY);
+                if (targetPiece && targetPiece.color === piece.color) return false;
+
+                if (!this.isPieceMoveLegal(piece, fromX, fromY, toX, toY)) return false;
+
+                // Check if move leaves king in check
+                if (checkKingSafety) {
+                    const tempBoard = this.board.map(row => [...row]);
+                    const tempKingPos = { ...this.kingPositions[piece.color] };
+                    const tempEnPassant = this.enPassantTarget;
+
+                    this.board[toX][toY] = piece;
+                    this.board[fromX][fromY] = null;
+                    if (piece.type === 'king') {
+                        this.kingPositions[piece.color] = { x: toX, y: toY };
+                    }
+
+                    // Handle en passant capture
+                    if (piece.type === 'pawn' && this.enPassantTarget && 
+                        toX === this.enPassantTarget.x && toY === this.enPassantTarget.y) {
+                        const captureY = piece.color === 'white' ? toY - 1 : toY + 1;
+                        this.board[toX][captureY] = null;
+                    }
+
+                    const inCheck = this.isInCheck(piece.color);
+
+                    this.board = tempBoard;
+                    this.kingPositions[piece.color] = tempKingPos;
+                    this.enPassantTarget = tempEnPassant;
+
+                    if (inCheck) return false;
+                }
+
+                return true;
+            }
+
+            isPieceMoveLegal(piece, fromX, fromY, toX, toY) {
+                const dx = toX - fromX;
+                const dy = toY - fromY;
+
+                switch (piece.type) {
+                    case 'pawn':
+                        return this.isValidPawnMove(fromX, fromY, toX, toY, piece.color);
+                    case 'rook':
+                        return (dx === 0 || dy === 0) && this.isPathClear(fromX, fromY, toX, toY);
+                    case 'knight':
+                        return (Math.abs(dx) === 2 && Math.abs(dy) === 1) || 
+                               (Math.abs(dx) === 1 && Math.abs(dy) === 2);
+                    case 'bishop':
+                        return Math.abs(dx) === Math.abs(dy) && this.isPathClear(fromX, fromY, toX, toY);
+                    case 'queen':
+                        return (dx === 0 || dy === 0 || Math.abs(dx) === Math.abs(dy)) && 
+                               this.isPathClear(fromX, fromY, toX, toY);
+                    case 'king':
+                        if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) return true;
+                        // Castling
+                        return this.isValidCastling(fromX, fromY, toX, toY, piece.color);
+                }
+                return false;
+            }
+
+            isValidPawnMove(fromX, fromY, toX, toY, color) {
+                const direction = color === 'white' ? 1 : -1;
+                const startRow = color === 'white' ? 1 : 6;
+                const dx = toX - fromX;
+                const dy = toY - fromY;
+
+                // Move forward one square
+                if (dx === 0 && dy === direction && !this.getPiece(toX, toY)) return true;
+                
+                // Move forward two squares from start
+                if (dx === 0 && fromY === startRow && dy === 2 * direction && 
+                    !this.getPiece(toX, toY) && !this.getPiece(fromX, fromY + direction)) return true;
+                
+                // Capture diagonally
+                if (Math.abs(dx) === 1 && dy === direction) {
+                    const targetPiece = this.getPiece(toX, toY);
+                    if (targetPiece && targetPiece.color !== color) return true;
+                    
+                    // En passant
+                    if (this.enPassantTarget && toX === this.enPassantTarget.x && toY === this.enPassantTarget.y) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
+            isValidCastling(fromX, fromY, toX, toY, color) {
+                if (fromY !== toY || Math.abs(toX - fromX) !== 2) return false;
+                
+                const piece = this.getPiece(fromX, fromY);
+                if (piece.moved) return false;
+
+                const kingSide = toX > fromX;
+                const rights = this.castlingRights[color];
+                
+                if (kingSide && !rights.kingSide) return false;
+                if (!kingSide && !rights.queenSide) return false;
+
+                // Check if king is in check
+                if (this.isInCheck(color)) return false;
+
+                // Check path is clear and not under attack
+                const rookX = kingSide ? 7 : 0;
+                const rook = this.getPiece(rookX, fromY);
+                if (!rook || rook.type !== 'rook' || rook.moved) return false;
+
+                const step = kingSide ? 1 : -1;
+                for (let x = fromX + step; x !== rookX; x += step) {
+                    if (this.getPiece(x, fromY)) return false;
+                }
+
+                // Check squares king passes through
+                for (let x = fromX; x !== toX + step; x += step) {
+                    if (this.isSquareUnderAttack(x, fromY, color)) return false;
+                }
+
+                return true;
+            }
+
+            isPathClear(fromX, fromY, toX, toY) {
+                const dx = Math.sign(toX - fromX);
+                const dy = Math.sign(toY - fromY);
+                let x = fromX + dx;
+                let y = fromY + dy;
+
+                while (x !== toX || y !== toY) {
+                    if (this.getPiece(x, y)) return false;
+                    x += dx;
+                    y += dy;
+                }
+                return true;
+            }
+
+            movePiece(fromX, fromY, toX, toY, promotionPiece = null) {
+                const piece = this.getPiece(fromX, fromY);
+                const capturedPiece = this.getPiece(toX, toY);
+
+                // Save move for undo
+                const moveData = {
+                    from: { x: fromX, y: fromY },
+                    to: { x: toX, y: toY },
+                    piece: { ...piece },
+                    capturedPiece: capturedPiece ? { ...capturedPiece } : null,
+                    enPassantTarget: this.enPassantTarget,
+                    castlingRights: JSON.parse(JSON.stringify(this.castlingRights)),
+                    halfMoveClock: this.halfMoveClock
+                };
+
+                // Handle captures
+                if (capturedPiece) {
+                    if (capturedPiece.color === 'white') {
+                        this.capturedBlack.push(capturedPiece.type);
+                    } else {
+                        this.capturedWhite.push(capturedPiece.type);
+                    }
+                    this.halfMoveClock = 0;
+                } else if (piece.type === 'pawn') {
+                    this.halfMoveClock = 0;
+                } else {
+                    this.halfMoveClock++;
+                }
+
+                // Handle en passant capture
+                if (piece.type === 'pawn' && this.enPassantTarget && 
+                    toX === this.enPassantTarget.x && toY === this.enPassantTarget.y) {
+                    const captureY = piece.color === 'white' ? toY - 1 : toY + 1;
+                    const capturedPawn = this.board[toX][captureY];
+                    if (capturedPawn) {
+                        if (capturedPawn.color === 'white') {
+                            this.capturedBlack.push('pawn');
+                        } else {
+                            this.capturedWhite.push('pawn');
+                        }
+                    }
+                    this.board[toX][captureY] = null;
+                    moveData.enPassantCapture = { x: toX, y: captureY };
+                }
+
+                // Handle castling
+                if (piece.type === 'king' && Math.abs(toX - fromX) === 2) {
+                    const kingSide = toX > fromX;
+                    const rookFromX = kingSide ? 7 : 0;
+                    const rookToX = kingSide ? toX - 1 : toX + 1;
+                    const rook = this.board[rookFromX][fromY];
+                    this.board[rookToX][fromY] = rook;
+                    this.board[rookFromX][fromY] = null;
+                    if (rook) rook.moved = true;
+                    moveData.castling = { rookFrom: rookFromX, rookTo: rookToX };
+                }
+
+                // Move piece
+                this.board[toX][toY] = piece;
+                this.board[fromX][fromY] = null;
+                piece.moved = true;
+
+                // Handle pawn promotion
+                if (piece.type === 'pawn' && (toY === 7 || toY === 0)) {
+                    piece.type = promotionPiece || 'queen';
+                    moveData.promotion = true;
+                }
+
+                // Update king position
+                if (piece.type === 'king') {
+                    this.kingPositions[piece.color] = { x: toX, y: toY };
+                }
+
+                // Set en passant target
+                this.enPassantTarget = null;
+                if (piece.type === 'pawn' && Math.abs(toY - fromY) === 2) {
+                    this.enPassantTarget = {
+                        x: toX,
+                        y: fromY + (toY > fromY ? 1 : -1)
+                    };
+                }
+
+                // Update castling rights
+                if (piece.type === 'king') {
+                    this.castlingRights[piece.color].kingSide = false;
+                    this.castlingRights[piece.color].queenSide = false;
+                }
+                if (piece.type === 'rook') {
+                    if (fromX === 0) this.castlingRights[piece.color].queenSide = false;
+                    if (fromX === 7) this.castlingRights[piece.color].kingSide = false;
+                }
+
+                this.moveHistory.push(moveData);
+                this.currentTurn = this.currentTurn === 'white' ? 'black' : 'white';
+                
+                if (this.currentTurn === 'white') {
+                    this.fullMoveNumber++;
+                }
+
+                return moveData;
+            }
+
+            undoMove() {
+                if (this.moveHistory.length === 0) return false;
+
+                const move = this.moveHistory.pop();
+                const { from, to, piece, capturedPiece, enPassantCapture, castling, promotion } = move;
+
+                // Restore piece
+                this.board[from.x][from.y] = { ...piece };
+                this.board[to.x][to.y] = capturedPiece ? { ...capturedPiece } : null;
+
+                // Restore en passant capture
+                if (enPassantCapture) {
+                    const pawnColor = piece.color === 'white' ? 'black' : 'white';
+                    this.board[enPassantCapture.x][enPassantCapture.y] = { type: 'pawn', color: pawnColor, moved: true };
+                    const capturedList = pawnColor === 'white' ? this.capturedBlack : this.capturedWhite;
+                    const idx = capturedList.lastIndexOf('pawn');
+                    if (idx !== -1) capturedList.splice(idx, 1);
+                }
+
+                // Restore castling
+                if (castling) {
+                    const rook = this.board[castling.rookTo][from.y];
+                    this.board[castling.rookFrom][from.y] = rook;
+                    this.board[castling.rookTo][from.y] = null;
+                    if (rook) rook.moved = false;
+                }
+
+                // Remove from captured if there was a capture
+                if (capturedPiece && !enPassantCapture) {
+                    const capturedList = capturedPiece.color === 'white' ? this.capturedBlack : this.capturedWhite;
+                    const idx = capturedList.lastIndexOf(capturedPiece.type);
+                    if (idx !== -1) capturedList.splice(idx, 1);
+                }
+
+                // Restore king position
+                if (piece.type === 'king') {
+                    this.kingPositions[piece.color] = { x: from.x, y: from.y };
+                }
+
+                // Restore game state
+                this.enPassantTarget = move.enPassantTarget;
+                this.castlingRights = move.castlingRights;
+                this.halfMoveClock = move.halfMoveClock;
+                this.currentTurn = this.currentTurn === 'white' ? 'black' : 'white';
+                
+                if (this.currentTurn === 'black') {
+                    this.fullMoveNumber--;
+                }
+
+                return true;
+            }
+
+            isInCheck(color) {
+                const kingPos = this.kingPositions[color];
+                return this.isSquareUnderAttack(kingPos.x, kingPos.y, color);
+            }
+
+            isSquareUnderAttack(x, y, defenderColor) {
+                const attackerColor = defenderColor === 'white' ? 'black' : 'white';
+                
+                for (let fx = 0; fx < 8; fx++) {
+                    for (let fy = 0; fy < 8; fy++) {
+                        const piece = this.getPiece(fx, fy);
+                        if (piece && piece.color === attackerColor) {
+                            if (this.isPieceMoveLegal(piece, fx, fy, x, y)) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                return false;
+            }
+
+            isCheckmate(color) {
+                if (!this.isInCheck(color)) return false;
+                return this.getAllValidMoves(color).length === 0;
+            }
+
+            isStalemate(color) {
+                if (this.isInCheck(color)) return false;
+                return this.getAllValidMoves(color).length === 0;
+            }
+
+            isDraw() {
+                // Fifty-move rule
+                if (this.halfMoveClock >= 100) return true;
+
+                // Insufficient material
+                const pieces = [];
+                for (let x = 0; x < 8; x++) {
+                    for (let y = 0; y < 8; y++) {
+                        const piece = this.getPiece(x, y);
+                        if (piece && piece.type !== 'king') {
+                            pieces.push(piece.type);
+                        }
+                    }
+                }
+
+                if (pieces.length === 0) return true; // King vs King
+                if (pieces.length === 1 && (pieces[0] === 'bishop' || pieces[0] === 'knight')) return true;
+
+                return false;
+            }
+
+            evaluatePosition() {
+                const pieceValues = {
+                    pawn: 100,
+                    knight: 320,
+                    bishop: 330,
+                    rook: 500,
+                    queen: 900,
+                    king: 20000
+                };
+
+                // Piece-square tables for positional evaluation
+                const pawnTable = [
+                    [0,  0,  0,  0,  0,  0,  0,  0],
+                    [50, 50, 50, 50, 50, 50, 50, 50],
+                    [10, 10, 20, 30, 30, 20, 10, 10],
+                    [5,  5, 10, 25, 25, 10,  5,  5],
+                    [0,  0,  0, 20, 20,  0,  0,  0],
+                    [5, -5,-10,  0,  0,-10, -5,  5],
+                    [5, 10, 10,-20,-20, 10, 10,  5],
+                    [0,  0,  0,  0,  0,  0,  0,  0]
+                ];
+
+                const knightTable = [
+                    [-50,-40,-30,-30,-30,-30,-40,-50],
+                    [-40,-20,  0,  0,  0,  0,-20,-40],
+                    [-30,  0, 10, 15, 15, 10,  0,-30],
+                    [-30,  5, 15, 20, 20, 15,  5,-30],
+                    [-30,  0, 15, 20, 20, 15,  0,-30],
+                    [-30,  5, 10, 15, 15, 10,  5,-30],
+                    [-40,-20,  0,  5,  5,  0,-20,-40],
+                    [-50,-40,-30,-30,-30,-30,-40,-50]
+                ];
+
+                let score = 0;
+
+                for (let x = 0; x < 8; x++) {
+                    for (let y = 0; y < 8; y++) {
+                        const piece = this.getPiece(x, y);
+                        if (!piece) continue;
+
+                        let value = pieceValues[piece.type];
+                        
+                        // Add positional bonuses
+                        const py = piece.color === 'white' ? y : 7 - y;
+                        if (piece.type === 'pawn') {
+                            value += pawnTable[py][x];
+                        } else if (piece.type === 'knight') {
+                            value += knightTable[py][x];
+                        }
+
+                        // Mobility bonus
+                        if (piece.type !== 'king') {
+                            const tempTurn = this.currentTurn;
+                            this.currentTurn = piece.color;
+                            const moves = this.getValidMovesForPiece(x, y).length;
+                            this.currentTurn = tempTurn;
+                            value += moves * 2;
+                        }
+
+                        score += piece.color === 'white' ? value : -value;
+                    }
+                }
+
+                // Check penalty
+                if (this.isInCheck('white')) score -= 50;
+                if (this.isInCheck('black')) score += 50;
+
+                return score;
+            }
+
+            minimax(depth, alpha, beta, maximizingPlayer) {
+                if (depth === 0) {
+                    return this.evaluatePosition();
+                }
+
+                const color = maximizingPlayer ? 'black' : 'white';
+                const moves = this.getAllValidMoves(color);
+
+                if (moves.length === 0) {
+                    if (this.isInCheck(color)) {
+                        return maximizingPlayer ? -100000 + depth : 100000 - depth;
+                    }
+                    return 0; // Stalemate
+                }
+
+                if (maximizingPlayer) {
+                    let maxEvaluation = -Infinity;
+                    for (const move of moves) {
+                        this.movePiece(move.from.x, move.from.y, move.to.x, move.to.y);
+                        const evaluation = this.minimax(depth - 1, alpha, beta, false);
+                        this.undoMove();
+                        maxEvaluation = Math.max(maxEvaluation, evaluation);
+                        alpha = Math.max(alpha, evaluation);
+                        if (beta <= alpha) break;
+                    }
+                    return maxEvaluation;
+                } else {
+                    let minEvaluation = Infinity;
+                    for (const move of moves) {
+                        this.movePiece(move.from.x, move.from.y, move.to.x, move.to.y);
+                        const evaluation = this.minimax(depth - 1, alpha, beta, true);
+                        this.undoMove();
+                        minEvaluation = Math.min(minEvaluation, evaluation);
+                        beta = Math.min(beta, evaluation);
+                        if (beta <= alpha) break;
+                    }
+                    return minEvaluation;
+                }
+            }
+
+            getBestMove(depth) {
+                const moves = this.getAllValidMoves('black');
+                if (moves.length === 0) return null;
+
+                let bestMove = null;
+                let bestValue = -Infinity;
+
+                // Shuffle moves for variety at same evaluation
+                moves.sort(() => Math.random() - 0.5);
+
+                for (const move of moves) {
+                    this.movePiece(move.from.x, move.from.y, move.to.x, move.to.y);
+                    const value = this.minimax(depth - 1, -Infinity, Infinity, false);
+                    this.undoMove();
+
+                    if (value > bestValue) {
+                        bestValue = value;
+                        bestMove = move;
+                    }
+                }
+
+                return bestMove;
+            }
+        }
+
+        // ==================== THREE.JS SETUP ====================
+        
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a2e);
+
+        const canvas = document.getElementById('canvas');
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 12, 12);
+        camera.lookAt(0, 0, 0);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 15, 5);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        scene.add(directionalLight);
+
+        // Board
+        const boardGroup = new THREE.Group();
+        scene.add(boardGroup);
+
+        const squareSize = 1;
+        const squares = [];
+        const pieceMeshes = [];
+
+        // Create board squares
+        for (let x = 0; x < 8; x++) {
+            squares[x] = [];
+            for (let y = 0; y < 8; y++) {
+                const isLight = (x + y) % 2 === 0;
+                const geometry = new THREE.BoxGeometry(squareSize, 0.2, squareSize);
+                const material = new THREE.MeshStandardMaterial({
+                    color: isLight ? 0xf0d9b5 : 0xb58863,
+                    roughness: 0.7,
+                    metalness: 0.2
+                });
+                const square = new THREE.Mesh(geometry, material);
+                square.position.set((x - 3.5) * squareSize, -0.1, (y - 3.5) * squareSize);
+                square.receiveShadow = true;
+                square.userData = { x, y, isSquare: true };
+                boardGroup.add(square);
+                squares[x][y] = square;
+            }
+        }
+
+        // Piece geometries - Realistic chess pieces
+        function createPawnGeometry() {
+            const geometry = new THREE.Group();
+            const base = new THREE.CylinderGeometry(0.25, 0.3, 0.1, 16);
+            const baseMesh = new THREE.Mesh(base);
+            
+            const stem = new THREE.CylinderGeometry(0.15, 0.2, 0.5, 16);
+            const stemMesh = new THREE.Mesh(stem);
+            stemMesh.position.y = 0.3;
+            
+            const head = new THREE.SphereGeometry(0.2, 16, 16);
+            const headMesh = new THREE.Mesh(head);
+            headMesh.position.y = 0.6;
+            
+            geometry.add(baseMesh);
+            geometry.add(stemMesh);
+            geometry.add(headMesh);
+            return geometry;
+        }
+
+        function createRookGeometry() {
+            const geometry = new THREE.Group();
+            const base = new THREE.CylinderGeometry(0.25, 0.35, 0.15, 16);
+            const baseMesh = new THREE.Mesh(base);
+            
+            const tower = new THREE.CylinderGeometry(0.22, 0.22, 0.6, 16);
+            const towerMesh = new THREE.Mesh(tower);
+            towerMesh.position.y = 0.4;
+            
+            const top = new THREE.CylinderGeometry(0.25, 0.22, 0.15, 16);
+            const topMesh = new THREE.Mesh(top);
+            topMesh.position.y = 0.75;
+            
+            geometry.add(baseMesh);
+            geometry.add(towerMesh);
+            geometry.add(topMesh);
+            
+            // Battlements
+            for (let i = 0; i < 4; i++) {
+                const battlement = new THREE.BoxGeometry(0.1, 0.15, 0.1);
+                const battlementMesh = new THREE.Mesh(battlement);
+                const angle = (i / 4) * Math.PI * 2;
+                battlementMesh.position.set(
+                    Math.cos(angle) * 0.2,
+                    0.9,
+                    Math.sin(angle) * 0.2
+                );
+                geometry.add(battlementMesh);
+            }
+            return geometry;
+        }
+
+        function createKnightGeometry() {
+            const geometry = new THREE.Group();
+            const base = new THREE.CylinderGeometry(0.25, 0.35, 0.15, 16);
+            const baseMesh = new THREE.Mesh(base);
+            
+            const neck = new THREE.CylinderGeometry(0.15, 0.2, 0.5, 8);
+            const neckMesh = new THREE.Mesh(neck);
+            neckMesh.position.set(0, 0.35, 0.1);
+            neckMesh.rotation.x = Math.PI / 6;
+            
+            const head = new THREE.BoxGeometry(0.25, 0.35, 0.3);
+            const headMesh = new THREE.Mesh(head);
+            headMesh.position.set(0, 0.65, 0.25);
+            
+            const ear1 = new THREE.ConeGeometry(0.08, 0.15, 8);
+            const ear1Mesh = new THREE.Mesh(ear1);
+            ear1Mesh.position.set(-0.08, 0.85, 0.2);
+            
+            const ear2 = new THREE.ConeGeometry(0.08, 0.15, 8);
+            const ear2Mesh = new THREE.Mesh(ear2);
+            ear2Mesh.position.set(0.08, 0.85, 0.2);
+            
+            const snout = new THREE.BoxGeometry(0.15, 0.15, 0.2);
+            const snoutMesh = new THREE.Mesh(snout);
+            snoutMesh.position.set(0, 0.6, 0.4);
+            
+            geometry.add(baseMesh);
+            geometry.add(neckMesh);
+            geometry.add(headMesh);
+            geometry.add(ear1Mesh);
+            geometry.add(ear2Mesh);
+            geometry.add(snoutMesh);
+            return geometry;
+        }
+
+        function createBishopGeometry() {
+            const geometry = new THREE.Group();
+            const base = new THREE.CylinderGeometry(0.25, 0.35, 0.15, 16);
+            const baseMesh = new THREE.Mesh(base);
+            
+            const stem = new THREE.CylinderGeometry(0.18, 0.22, 0.5, 16);
+            const stemMesh = new THREE.Mesh(stem);
+            stemMesh.position.y = 0.35;
+            
+            const middle = new THREE.SphereGeometry(0.2, 16, 16);
+            const middleMesh = new THREE.Mesh(middle);
+            middleMesh.position.y = 0.65;
+            middleMesh.scale.y = 1.3;
+            
+            const top = new THREE.ConeGeometry(0.15, 0.3, 16);
+            const topMesh = new THREE.Mesh(top);
+            topMesh.position.y = 0.95;
+            
+            const cross = new THREE.SphereGeometry(0.08, 8, 8);
+            const crossMesh = new THREE.Mesh(cross);
+            crossMesh.position.y = 1.15;
+            
+            geometry.add(baseMesh);
+            geometry.add(stemMesh);
+            geometry.add(middleMesh);
+            geometry.add(topMesh);
+            geometry.add(crossMesh);
+            return geometry;
+        }
+
+        function createQueenGeometry() {
+            const geometry = new THREE.Group();
+            const base = new THREE.CylinderGeometry(0.28, 0.38, 0.15, 16);
+            const baseMesh = new THREE.Mesh(base);
+            
+            const stem = new THREE.CylinderGeometry(0.2, 0.25, 0.6, 16);
+            const stemMesh = new THREE.Mesh(stem);
+            stemMesh.position.y = 0.4;
+            
+            const crown = new THREE.CylinderGeometry(0.25, 0.2, 0.2, 16);
+            const crownMesh = new THREE.Mesh(crown);
+            crownMesh.position.y = 0.8;
+            
+            geometry.add(baseMesh);
+            geometry.add(stemMesh);
+            geometry.add(crownMesh);
+            
+            // Crown points
+            for (let i = 0; i < 8; i++) {
+                const point = new THREE.ConeGeometry(0.06, 0.2, 8);
+                const pointMesh = new THREE.Mesh(point);
+                const angle = (i / 8) * Math.PI * 2;
+                pointMesh.position.set(
+                    Math.cos(angle) * 0.22,
+                    1.05,
+                    Math.sin(angle) * 0.22
+                );
+                geometry.add(pointMesh);
+            }
+            
+            const jewel = new THREE.SphereGeometry(0.1, 16, 16);
+            const jewelMesh = new THREE.Mesh(jewel);
+            jewelMesh.position.y = 1.15;
+            geometry.add(jewelMesh);
+            
+            return geometry;
+        }
+
+        function createKingGeometry() {
+            const geometry = new THREE.Group();
+            const base = new THREE.CylinderGeometry(0.3, 0.4, 0.15, 16);
+            const baseMesh = new THREE.Mesh(base);
+            
+            const stem = new THREE.CylinderGeometry(0.22, 0.27, 0.7, 16);
+            const stemMesh = new THREE.Mesh(stem);
+            stemMesh.position.y = 0.45;
+            
+            const crown = new THREE.CylinderGeometry(0.28, 0.22, 0.2, 16);
+            const crownMesh = new THREE.Mesh(crown);
+            crownMesh.position.y = 0.9;
+            
+            geometry.add(baseMesh);
+            geometry.add(stemMesh);
+            geometry.add(crownMesh);
+            
+            // Crown points
+            for (let i = 0; i < 8; i++) {
+                const point = new THREE.ConeGeometry(0.07, 0.25, 8);
+                const pointMesh = new THREE.Mesh(point);
+                const angle = (i / 8) * Math.PI * 2;
+                pointMesh.position.set(
+                    Math.cos(angle) * 0.25,
+                    1.15,
+                    Math.sin(angle) * 0.25
+                );
+                geometry.add(pointMesh);
+            }
+            
+            const crossV = new THREE.BoxGeometry(0.06, 0.35, 0.06);
+            const crossVMesh = new THREE.Mesh(crossV);
+            crossVMesh.position.y = 1.4;
+            
+            const crossH = new THREE.BoxGeometry(0.25, 0.06, 0.06);
+            const crossHMesh = new THREE.Mesh(crossH);
+            crossHMesh.position.y = 1.35;
+            
+            geometry.add(crossVMesh);
+            geometry.add(crossHMesh);
+            return geometry;
+        }
+
+        const pieceGeometries = {
+            pawn: createPawnGeometry(),
+            rook: createRookGeometry(),
+            knight: createKnightGeometry(),
+            bishop: createBishopGeometry(),
+            queen: createQueenGeometry(),
+            king: createKingGeometry()
+        };
+
+        const pieceMaterials = {
+            white: new THREE.MeshStandardMaterial({ 
+                color: 0xf5f5dc, 
+                roughness: 0.3, 
+                metalness: 0.1,
+                emissive: 0x222222,
+                emissiveIntensity: 0.05
+            }),
+            black: new THREE.MeshStandardMaterial({ 
+                color: 0x2c1810, 
+                roughness: 0.4, 
+                metalness: 0.2,
+                emissive: 0x000000,
+                emissiveIntensity: 0.1
+            })
+        };
+
+        const highlightMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffff00,
+            emissive: 0xffff00,
+            emissiveIntensity: 0.3,
+            roughness: 0.5,
+            metalness: 0.3
+        });
+
+        const validMoveMaterial = new THREE.MeshStandardMaterial({
+            color: 0x00ff00,
+            transparent: true,
+            opacity: 0.5
+        });
+
+        // Create piece mesh with realistic geometry
+        function createPiece(type, color, x, y) {
+            const pieceGroup = pieceGeometries[type].clone();
+            
+            // Apply material to all children
+            const material = pieceMaterials[color].clone();
+            pieceGroup.traverse((child) => {
+                if (child instanceof THREE.Mesh) {
+                    child.material = material;
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+            
+            pieceGroup.position.set((x - 3.5) * squareSize, 0, (y - 3.5) * squareSize);
+            pieceGroup.userData = { type, color, x, y, isPiece: true };
+            
+            boardGroup.add(pieceGroup);
+            return pieceGroup;
+        }
+
+        // Initialize pieces
+        function initPieces(engine) {
+            pieceMeshes.forEach(row => row && row.forEach(piece => piece && boardGroup.remove(piece)));
+            pieceMeshes.length = 0;
+
+            for (let x = 0; x < 8; x++) {
+                pieceMeshes[x] = [];
+                for (let y = 0; y < 8; y++) {
+                    const piece = engine.getPiece(x, y);
+                    if (piece) {
+                        pieceMeshes[x][y] = createPiece(piece.type, piece.color, x, y);
+                    } else {
+                        pieceMeshes[x][y] = null;
+                    }
+                }
+            }
+        }
+
+        // ==================== GAME LOGIC ====================
+        
+        let engine = new ChessEngine();
+        let selectedPiece = null;
+        let validMoveIndicators = [];
+        let aiDifficulty = 2;
+        let isAIThinking = false;
+        let pendingPromotion = null;
+
+        initPieces(engine);
+
+        function updateUI() {
+            const turn = engine.currentTurn.charAt(0).toUpperCase() + engine.currentTurn.slice(1);
+            document.getElementById('turnIndicator').textContent = turn + "'s Turn";
+            
+            let status = '';
+            if (isAIThinking) {
+                status = '🤔 AI is thinking...';
+            } else if (engine.isInCheck(engine.currentTurn)) {
+                status = '⚠️ Check!';
+            }
+            document.getElementById('statusText').textContent = status;
+            
+            const pieceSymbols = {
+                pawn: '♟', rook: '♜', knight: '♞', bishop: '♝', queen: '♛', king: '♚'
+            };
+            
+            document.getElementById('whiteCaptured').textContent = 
+                engine.capturedWhite.map(p => pieceSymbols[p]).join(' ') || '-';
+            document.getElementById('blackCaptured').textContent = 
+                engine.capturedBlack.map(p => pieceSymbols[p]).join(' ') || '-';
+        }
+
+        function showMessage(text, duration = 3000) {
+            const msg = document.getElementById('message');
+            msg.textContent = text;
+            msg.classList.add('show');
+            setTimeout(() => msg.classList.remove('show'), duration);
+        }
+
+        function clearValidMoves() {
+            validMoveIndicators.forEach(indicator => boardGroup.remove(indicator));
+            validMoveIndicators = [];
+        }
+
+        function showValidMoves(x, y) {
+            clearValidMoves();
+            
+            const moves = engine.getValidMovesForPiece(x, y);
+            moves.forEach(move => {
+                const geometry = new THREE.RingGeometry(0.3, 0.4, 32);
+                const indicator = new THREE.Mesh(geometry, validMoveMaterial);
+                indicator.position.set((move.x - 3.5) * squareSize, 0.11, (move.y - 3.5) * squareSize);
+                indicator.rotation.x = -Math.PI / 2;
+                boardGroup.add(indicator);
+                validMoveIndicators.push(indicator);
+            });
+        }
+
+        function animatePiece(piece, targetPos, callback) {
+            const startPos = piece.position.clone();
+            const duration = 300;
+            const startTime = Date.now();
+            
+            function animate() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const eased = 1 - Math.pow(1 - progress, 3);
+                
+                piece.position.lerpVectors(startPos, targetPos, eased);
+                piece.position.y = Math.sin(progress * Math.PI) * 0.5;
+                
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    piece.position.copy(targetPos);
+                    piece.position.y = 0;
+                    callback();
+                }
+            }
+            
+            animate();
+        }
+
+        function makeMove(fromX, fromY, toX, toY, promotionPiece = null) {
+            const piece = pieceMeshes[fromX][fromY];
+            const targetPos = new THREE.Vector3((toX - 3.5) * squareSize, 0, (toY - 3.5) * squareSize);
+            
+            animatePiece(piece, targetPos, () => {
+                // Remove captured piece
+                if (pieceMeshes[toX][toY]) {
+                    boardGroup.remove(pieceMeshes[toX][toY]);
+                }
+
+                // Handle en passant capture
+                const pieceData = engine.getPiece(fromX, fromY);
+                if (pieceData && pieceData.type === 'pawn' && engine.enPassantTarget &&
+                    toX === engine.enPassantTarget.x && toY === engine.enPassantTarget.y) {
+                    const captureY = pieceData.color === 'white' ? toY - 1 : toY + 1;
+                    if (pieceMeshes[toX][captureY]) {
+                        boardGroup.remove(pieceMeshes[toX][captureY]);
+                        pieceMeshes[toX][captureY] = null;
+                    }
+                }
+
+                // Handle castling
+                if (pieceData && pieceData.type === 'king' && Math.abs(toX - fromX) === 2) {
+                    const kingSide = toX > fromX;
+                    const rookFromX = kingSide ? 7 : 0;
+                    const rookToX = kingSide ? toX - 1 : toX + 1;
+                    const rook = pieceMeshes[rookFromX][fromY];
+                    if (rook) {
+                        rook.position.x = (rookToX - 3.5) * squareSize;
+                        rook.userData.x = rookToX;
+                        pieceMeshes[rookToX][fromY] = rook;
+                        pieceMeshes[rookFromX][fromY] = null;
+                    }
+                }
+                
+                // Update engine state
+                engine.movePiece(fromX, fromY, toX, toY, promotionPiece);
+                
+                // Update mesh array
+                pieceMeshes[toX][toY] = piece;
+                pieceMeshes[fromX][fromY] = null;
+                piece.userData.x = toX;
+                piece.userData.y = toY;
+
+                // Handle promotion visual update
+                if (pieceData && pieceData.type === 'pawn' && (toY === 7 || toY === 0)) {
+                    boardGroup.remove(piece);
+                    const newType = promotionPiece || 'queen';
+                    pieceMeshes[toX][toY] = createPiece(newType, pieceData.color, toX, toY);
+                }
+                
+                // Reset selection
+                if (selectedPiece) {
+                    selectedPiece.traverse((child) => {
+                        if (child instanceof THREE.Mesh) {
+                            child.material = pieceMaterials[selectedPiece.userData.color].clone();
+                        }
+                    });
+                }
+                selectedPiece = null;
+                clearValidMoves();
+                
+                updateUI();
+                checkGameState();
+            });
+        }
+
+        function checkGameState() {
+            if (engine.isCheckmate(engine.currentTurn)) {
+                const winner = engine.currentTurn === 'white' ? 'Black' : 'White';
+                showMessage(`Checkmate! ${winner} Wins!`, 5000);
+                return true;
+            }
+            
+            if (engine.isStalemate(engine.currentTurn)) {
+                showMessage('Stalemate! Game is a draw.', 5000);
+                return true;
+            }
+            
+            if (engine.isDraw()) {
+                showMessage('Draw by insufficient material or 50-move rule.', 5000);
+                return true;
+            }
+
+            // AI turn
+            if (engine.currentTurn === 'black' && !isAIThinking) {
+                setTimeout(makeAIMove, 500);
+            }
+
+            return false;
+        }
+
+        function makeAIMove() {
+            isAIThinking = true;
+            updateUI();
+
+            setTimeout(() => {
+                const move = engine.getBestMove(aiDifficulty);
+                if (move) {
+                    makeMove(move.from.x, move.from.y, move.to.x, move.to.y);
+                }
+                isAIThinking = false;
+                updateUI();
+            }, 100);
+        }
+
+        function showPromotionDialog(fromX, fromY, toX, toY) {
+            pendingPromotion = { fromX, fromY, toX, toY };
+            document.getElementById('promotionDialog').classList.add('show');
+        }
+
+        // Raycasting
+        const raycaster = new THREE.Raycaster();
+        const touchPos = new THREE.Vector2();
+
+        function handleTouch(event) {
+            if (isAIThinking || engine.currentTurn === 'black') return;
+            
+            event.preventDefault();
+            
+            const touch = event.touches ? event.touches[0] : event;
+            const rect = canvas.getBoundingClientRect();
+            
+            touchPos.x = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
+            touchPos.y = -((touch.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(touchPos, camera);
+            const intersects = raycaster.intersectObjects(boardGroup.children, true);
+            
+            if (intersects.length > 0) {
+                let object = intersects[0].object;
+                
+                // Find the parent piece group
+                while (object.parent && !object.userData.isPiece && !object.userData.isSquare) {
+                    object = object.parent;
+                }
+                
+                if (object.userData.isPiece) {
+                    const { x, y, color } = object.userData;
+                    
+                    if (color === 'white') {
+                        if (selectedPiece) {
+                            selectedPiece.traverse((child) => {
+                                if (child instanceof THREE.Mesh) {
+                                    child.material = pieceMaterials[selectedPiece.userData.color].clone();
+                                }
+                            });
+                        }
+                        selectedPiece = object;
+                        selectedPiece.traverse((child) => {
+                            if (child instanceof THREE.Mesh) {
+                                child.material = highlightMaterial.clone();
+                            }
+                        });
+                        showValidMoves(x, y);
+                    } else if (selectedPiece) {
+                        attemptMove(selectedPiece.userData.x, selectedPiece.userData.y, x, y);
+                    }
+                } else if (object.userData.isSquare && selectedPiece) {
+                    const { x, y } = object.userData;
+                    attemptMove(selectedPiece.userData.x, selectedPiece.userData.y, x, y);
+                }
+            }
+        }
+
+        function attemptMove(fromX, fromY, toX, toY) {
+            if (engine.isValidMove(fromX, fromY, toX, toY)) {
+                const piece = engine.getPiece(fromX, fromY);
+                
+                // Check for pawn promotion
+                if (piece.type === 'pawn' && toY === 7) {
+                    showPromotionDialog(fromX, fromY, toX, toY);
+                } else {
+                    makeMove(fromX, fromY, toX, toY);
+                }
+            }
+        }
+
+        // Event listeners
+        canvas.addEventListener('touchstart', handleTouch, { passive: false });
+        canvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+        canvas.addEventListener('click', handleTouch);
+
+        document.querySelectorAll('.promotion-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const piece = btn.dataset.piece;
+                document.getElementById('promotionDialog').classList.remove('show');
+                if (pendingPromotion) {
+                    const { fromX, fromY, toX, toY } = pendingPromotion;
+                    makeMove(fromX, fromY, toX, toY, piece);
+                    pendingPromotion = null;
+                }
+            });
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            engine.reset();
+            initPieces(engine);
+            selectedPiece = null;
+            clearValidMoves();
+            isAIThinking = false;
+            updateUI();
+            showMessage('New Game Started!');
+        });
+
+        document.getElementById('undoBtn').addEventListener('click', () => {
+            if (engine.currentTurn === 'black' || isAIThinking) return;
+            
+            // Undo AI move
+            if (engine.undoMove()) {
+                // Undo player move
+                engine.undoMove();
+                initPieces(engine);
+                selectedPiece = null;
+                clearValidMoves();
+                updateUI();
+                showMessage('Move undone');
+            }
+        });
+
+        document.getElementById('difficultySelect').addEventListener('change', (e) => {
+            aiDifficulty = parseInt(e.target.value);
+            showMessage(`Difficulty set to ${e.target.options[e.target.selectedIndex].text}`);
+        });
+
+        // Resize
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        window.addEventListener('resize', onWindowResize);
+        onWindowResize();
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            boardGroup.rotation.y += 0.001;
+            renderer.render(scene, camera);
+        }
+
+        document.querySelector('.loading').style.display = 'none';
+        updateUI();
+        animate();
+
+        // Cleanup
+        window.addEventListener('beforeunload', () => {
+            renderer.dispose();
+            Object.values(pieceGeometries).forEach(g => g.dispose());
+            Object.values(pieceMaterials).forEach(m => m.dispose());
+        });
+    </script>
+</body>
+</html>
+                
